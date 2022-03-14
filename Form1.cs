@@ -5,12 +5,12 @@ using System.ComponentModel;
 using System.Data;
 using System.Drawing;
 using System.Linq;
-using System.Net;
 using System.Text;
+using System.Net;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
-namespace TCPClient
+namespace TCPServer
 {
     public partial class Form1 : Form
     {
@@ -19,92 +19,97 @@ namespace TCPClient
             InitializeComponent();
         }
 
-        SimpleTcpClient client;
+        SimpleTcpServer server;
 
-        private void Form1_Load(object sender, EventArgs e)
+
+
+        /*
+         * Start butonuna tıklanğında server başlatılıyor ve bir mesaj gönderildi
+         * Start butonu pasif Send aktif 
+         */
+        private void btnStart_Click(object sender, EventArgs e)
         {
-            client = new(txtIP.Text);
-            client.Events.Connected += Events_Connected;
-            client.Events.DataReceived += Events_DataReceived;
-            client.Events.Disconnected += Events_Disconnected;
-            btnSend.Enabled = false;
+            server.Start();
+            txtInfo.Text += $"Starting...{Environment.NewLine}";
+            btnStart.Enabled = false;
+            btnSend.Enabled = true;
+
         }
 
-        
+       
+        private void Form1_Load(object sender, EventArgs e)
+        {
+            btnSend.Enabled = false;
+            server = new SimpleTcpServer(txtIP.Text);
+            server.Events.ClientConnected += Events_ClientConnected;
+            server.Events.ClientDisconnected += Events_ClientDisconnected;
+            server.Events.DataReceived += Events_DataReceived;
+
+        }
+
         /*
-         * server'dan veri alışı
+         *  server ile client bağlantısı
          */
+
+        private void Events_ClientConnected(object sender, ConnectionEventArgs e)
+        {
+            this.Invoke((MethodInvoker)delegate
+            {
+                txtInfo.Text += $"{e.IpPort} connected.{Environment.NewLine}";
+                lstClientIP.Items.Add(e.IpPort);
+            });
+
+        }
+
+        /*
+         * server client veri alışı
+         */
+
         private void Events_DataReceived(object sender, DataReceivedEventArgs e)
         {
             this.Invoke((MethodInvoker)delegate
             {
-                txtInfo.Text += $"Server: {Encoding.UTF8.GetString(e.Data)}{Environment.NewLine}";
-            });
-        }
-
-        /*
-         * client ile server bağlantısı
-         */
-        private void Events_Connected(object sender, ConnectionEventArgs e)
-        {
-            this.Invoke((MethodInvoker)delegate
-            {
-                txtInfo.Text += $"Server connected.{Environment.NewLine}";
+                txtInfo.Text += $"{e.IpPort}: {Encoding.UTF8.GetString(e.Data)}{Environment.NewLine}";
             });
         }
 
         /*
          * client ile server bağlantısını kes
+         * IP listesinden sil - lstClientIP 
          */
-        private void Events_Disconnected(object sender, ConnectionEventArgs e)
+        private void Events_ClientDisconnected(object sender, ConnectionEventArgs e)
         {
             this.Invoke((MethodInvoker)delegate
             {
                 txtInfo.Text += $"{e.IpPort} disconnected.{Environment.NewLine}";
+                lstClientIP.Items.Remove(e.IpPort);
             });
         }
+
 
         private void txtMsg_TextChanged(object sender, EventArgs e)
         {
 
         }
 
-        /*
-         * Bağlantı sağlanırsa ve txtMessage null değilse mesaj görünür
-         */
         private void btnSend_Click(object sender, EventArgs e)
         {
-            if (client.IsConnected)
+            if(server.IsListening)
             {
-                if(!string.IsNullOrEmpty(txtMessage.Text))
+                // Mesajı kontrol et ve listeden bir client ip seç
+                if (!string.IsNullOrEmpty(txtMessage.Text) && lstClientIP.SelectedItem != null)
                 {
-                    client.Send(txtMessage.Text);
-                    txtInfo.Text += $"Me : {txtMessage.Text}{Environment.NewLine}";
+                    server.Send(lstClientIP.SelectedItem.ToString(), txtMessage.Text);
+                    txtInfo.Text += $"Server: {txtMessage.Text}{Environment.NewLine}";
                     txtMessage.Text = string.Empty;
+                        
                 }
             }
-
         }
 
-        /*
-         * Connect butonu server ile bağlantı kurulur
-         * Connect butonu pasif Send aktif 
-         */
-        private void btnConnect_Click(object sender, EventArgs e)
+        private void lstClientIP_SelectedIndexChanged(object sender, EventArgs e)
         {
-            try
-            {
-                client.Connect();
-                btnSend.Enabled = true;
-                btnConnect.Enabled = false;
-            }
-            catch(Exception ex)
-            {
-                MessageBox.Show(ex.Message, "Message", MessageBoxButtons.OK, MessageBoxIcon.Error);
 
-            }
         }
-
-        
     }
 }
